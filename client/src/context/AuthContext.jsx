@@ -5,16 +5,70 @@ import api from '../lib/api'
 const AuthContext = createContext(null)
 const storageKey = 'kameez-wala-auth'
 
-export function AuthProvider({ children }) {
-  const [auth, setAuth] = useState(() => {
+function getStoredAuth() {
+  try {
     const stored = localStorage.getItem(storageKey)
-    return stored ? JSON.parse(stored) : { user: null, token: null }
-  })
+    if (!stored) {
+      return { user: null, token: null }
+    }
+
+    const parsed = JSON.parse(stored)
+    return {
+      user: parsed?.user ?? null,
+      token: parsed?.token ?? null,
+    }
+  } catch {
+    return { user: null, token: null }
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [auth, setAuth] = useState(getStoredAuth)
   const [loading, setLoading] = useState(false)
+  const [isHydrating, setIsHydrating] = useState(Boolean(getStoredAuth().token))
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(auth))
   }, [auth])
+
+  useEffect(() => {
+    if (!auth.token) {
+      setIsHydrating(false)
+      return
+    }
+
+    let isMounted = true
+
+    const syncCurrentUser = async () => {
+      try {
+        const { data } = await api.get('/auth/me')
+        if (!isMounted) {
+          return
+        }
+
+        setAuth((current) => ({
+          user: data,
+          token: current.token,
+        }))
+      } catch {
+        if (!isMounted) {
+          return
+        }
+
+        setAuth({ user: null, token: null })
+      } finally {
+        if (isMounted) {
+          setIsHydrating(false)
+        }
+      }
+    }
+
+    syncCurrentUser()
+
+    return () => {
+      isMounted = false
+    }
+  }, [auth.token])
 
   const register = async (payload) => {
     try {
@@ -55,13 +109,13 @@ export function AuthProvider({ children }) {
     () => ({
       user: auth.user,
       token: auth.token,
-      isAuthenticated: Boolean(auth.token),
-      loading,
+      isAuthenticated: Boolean(auth.token && auth.user),
+      loading: loading || isHydrating,
       register,
       login,
       logout,
     }),
-    [auth, loading],
+    [auth, loading, isHydrating],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

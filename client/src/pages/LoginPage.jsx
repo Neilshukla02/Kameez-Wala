@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AnimatedButton from '../components/AnimatedButton'
 import AnimatedPage from '../components/AnimatedPage'
@@ -8,14 +8,20 @@ import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login, loading } = useAuth()
+  const { isAuthenticated, login, loading } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/shop', { replace: true })
+    }
+  }, [isAuthenticated, navigate])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     try {
       await login(form)
-      navigate('/shop')
+      navigate('/shop', { replace: true })
     } catch {
       return
     }
