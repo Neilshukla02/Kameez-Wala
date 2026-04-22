@@ -15,7 +15,7 @@ export const protect = asyncHandler(async (req, _res, next) => {
   const token = authHeader.split(' ')[1]
   const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev_kameez_wala_secret')
   const user = isMemoryMode()
-    ? sanitizeUser(findUserById(decoded.userId))
+    ? sanitizeUser(findUserById(decoded.userId)) || buildUserFromToken(decoded)
     : await User.findById(decoded.userId).select('-password')
 
   if (!user) {
@@ -27,6 +27,19 @@ export const protect = asyncHandler(async (req, _res, next) => {
   req.user = user
   next()
 })
+
+function buildUserFromToken(decoded) {
+  if (!decoded?.userId || !decoded?.email || !decoded?.name || !decoded?.role) {
+    return null
+  }
+
+  return {
+    _id: decoded.userId,
+    email: decoded.email,
+    name: decoded.name,
+    role: decoded.role,
+  }
+}
 
 export const adminOnly = (req, _res, next) => {
   if (req.user?.role !== 'admin') {
